@@ -1,5 +1,5 @@
 {
-  "name": "General-purpose development",
+  "name": "Cloud Service Space",
   "image": "mcr.microsoft.com/devcontainers/universal:6-noble",
   "postCreateCommand": "bash scripts/check-environment.sh"
 }

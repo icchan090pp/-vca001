@@ -25,3 +25,19 @@ jobs:
         run: python3 -m json.tool .devcontainer/devcontainer.json > /dev/null
       - name: Check development tools
         run: bash scripts/check-environment.sh
+      - name: Simulate development workflows
+        run: python3 scripts/check-workflows.py
+
+  codespaces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test the Codespaces container
+        uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: |
+            set -e
+            bash scripts/check-environment.sh
+            python3 scripts/check-workflows.py
