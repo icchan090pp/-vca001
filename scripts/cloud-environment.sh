@@ -29,6 +29,7 @@ esac
 # Repository-local defaults also work when the cloud home directory is read-only.
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-"$repository_root/.cache"}"
 export npm_config_cache="${npm_config_cache:-"$XDG_CACHE_HOME/npm"}"
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-"$repository_root/.cache/ms-playwright"}"
 mkdir -p -- "$XDG_CACHE_HOME" "$npm_config_cache"
 for cache_directory in "$XDG_CACHE_HOME" "$npm_config_cache"; do
     if [[ ! -w "$cache_directory" ]]; then
@@ -36,6 +37,25 @@ for cache_directory in "$XDG_CACHE_HOME" "$npm_config_cache"; do
         exit 1
     fi
 done
+
+environment_python="$repository_root/.venv/bin/python"
+if [[ "$operation" == setup || "$operation" == verify ]]; then
+    if [[ ! -x "$environment_python" ]]; then
+        python3 -m venv "$repository_root/.venv"
+    fi
+    "$environment_python" -c 'import sys; assert sys.version_info >= (3, 12), "Python 3.12 or newer is required"'
+    "$environment_python" -m pip install --disable-pip-version-check \
+        -r "$repository_root/requirements-dev.txt"
+    if ! command -v chromium >/dev/null 2>&1 && ! command -v google-chrome >/dev/null 2>&1; then
+        "$environment_python" -m playwright install --with-deps --only-shell chromium
+    fi
+elif [[ ! -x "$environment_python" ]]; then
+    printf 'Run bash scripts/cloud-environment.sh setup first.\n' >&2
+    exit 1
+fi
+
+export VIRTUAL_ENV="$repository_root/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
 
 if [[ "$operation" == run ]]; then
     exec "$@"
@@ -48,8 +68,13 @@ fi
 
 for attempt in 1 2 3; do
     printf '\nVerification %s/3\n' "$attempt"
+    report_directory="$repository_root/artifacts/verification/run-$attempt"
+    mkdir -p -- "$report_directory"
     bash scripts/check-environment.sh
-    python3 scripts/check-workflows.py
+    python3 -m ruff check .
+    python3 -m ruff format --check .
+    CLOUDSPACE_CHECK_RUN="$attempt" python3 -m pytest -q --durations=10 \
+        --junitxml="$report_directory/results.xml"
     printf 'PASS: verification %s/3\n' "$attempt"
 done
 printf '\nPASS: all 3 consecutive verification runs\n'

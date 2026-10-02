@@ -1,16 +1,16 @@
 import json
-from pathlib import Path
 import select
 import subprocess
 import sys
 import tempfile
 import unittest
 import urllib.request
+from pathlib import Path
 
 
 class DevelopmentWorkflows(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="vca001-workflow-")
+        temporary = tempfile.TemporaryDirectory(prefix="cloudspace-workflow-")
         self.addCleanup(temporary.cleanup)
         self.workspace = Path(temporary.name)
 
@@ -70,6 +70,36 @@ print(json.dumps({"result": "ok"}))
         )
         self.assertEqual(json.loads(result), {"result": "ok"})
 
+    def test_python_editable_package_installation(self):
+        project = self.workspace / "example-project"
+        project.mkdir()
+        (project / "pyproject.toml").write_text(
+            '[build-system]\nrequires = ["setuptools>=61"]\n'
+            'build-backend = "setuptools.build_meta"\n\n'
+            '[project]\nname = "cloudspace-example"\nversion = "0.0.0"\n\n'
+            '[tool.setuptools]\npy-modules = ["example"]\n',
+            encoding="utf-8",
+        )
+        module = project / "example.py"
+        module.write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+        environment = self.workspace / ".venv"
+        self.run_command(sys.executable, "-m", "venv", str(environment))
+        python = str(environment / "bin" / "python")
+        self.run_command(
+            python,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--quiet",
+            "--no-deps",
+            "--editable",
+            str(project),
+        )
+        self.run_command(python, "-c", "import example; assert example.add(2, 3) == 5")
+        module.write_text("def add(a, b):\n    return a + b + 1\n", encoding="utf-8")
+        self.run_command(python, "-c", "import example; assert example.add(2, 3) == 6")
+
     def test_typescript_build_and_clean_dependency_install(self):
         (self.workspace / "package.json").write_text(
             json.dumps({"name": "environment-check", "private": True}),
@@ -82,26 +112,33 @@ print(json.dumps({"result": "ok"}))
             encoding="utf-8",
         )
         self.run_command(
-            "npm", "install", "--ignore-scripts", "--no-audit", "--no-fund",
-            "--save-dev", "typescript",
+            "npm",
+            "install",
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund",
+            "--save-dev",
+            "typescript",
         )
         lockfile = (self.workspace / "package-lock.json").read_bytes()
         for clean_install in (False, True):
             with self.subTest(clean_install=clean_install):
                 if clean_install:
-                    self.run_command(
-                        "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"
-                    )
+                    self.run_command("npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund")
                 self.run_command(
                     str(self.workspace / "node_modules" / ".bin" / "tsc"),
-                    "--strict", "--target", "ES2022", "--module", "commonjs",
-                    "--outDir", "dist", "example.ts",
+                    "--strict",
+                    "--target",
+                    "ES2022",
+                    "--module",
+                    "commonjs",
+                    "--outDir",
+                    "dist",
+                    "example.ts",
                 )
                 result = self.run_command("node", "dist/example.js")
                 self.assertEqual(json.loads(result), {"total": 10})
-                self.assertEqual(
-                    (self.workspace / "package-lock.json").read_bytes(), lockfile
-                )
+                self.assertEqual((self.workspace / "package-lock.json").read_bytes(), lockfile)
 
     def check_http_restarts(self, command):
         client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -120,9 +157,7 @@ print(json.dumps({"result": "ok"}))
                     line = process.stdout.readline()
                     self.assertTrue(line, "HTTP server exited before becoming ready")
                     port = int(line)
-                    with client.open(
-                        f"http://127.0.0.1:{port}/health", timeout=10
-                    ) as response:
+                    with client.open(f"http://127.0.0.1:{port}/health", timeout=10) as response:
                         self.assertEqual(response.status, 200)
                         self.assertEqual(json.load(response), {"status": "ok"})
                     self.assertIsNone(process.poll())
@@ -136,7 +171,11 @@ print(json.dumps({"result": "ok"}))
 
     def test_python_http_start_and_restart(self):
         self.check_http_restarts(
-            [sys.executable, "-u", "-c", """
+            [
+                sys.executable,
+                "-u",
+                "-c",
+                """
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 class Handler(BaseHTTPRequestHandler):
@@ -151,12 +190,17 @@ class Handler(BaseHTTPRequestHandler):
 server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 print(server.server_port, flush=True)
 server.serve_forever()
-"""]
+""",
+            ]
         )
 
     def test_node_http_start_and_restart(self):
         self.check_http_restarts(
-            ["node", "--input-type=module", "-e", """
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                """
 import { createServer } from 'node:http';
 const server = createServer((request, response) => {
   response.writeHead(request.url === '/health' ? 200 : 404, {
@@ -165,7 +209,8 @@ const server = createServer((request, response) => {
   response.end(JSON.stringify({ status: 'ok' }));
 });
 server.listen(0, '127.0.0.1', () => console.log(server.address().port));
-"""]
+""",
+            ]
         )
 
 

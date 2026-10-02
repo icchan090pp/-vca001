@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
+          python-version: '3.12'
       - uses: actions/setup-node@v5
         with:
           node-version: 'lts/*'
@@ -25,6 +25,13 @@ jobs:
         run: python3 -m json.tool .devcontainer/devcontainer.json > /dev/null
       - name: Verify Cloud Environment workflows three times
         run: bash scripts/cloud-environment.sh verify
+      - name: Save verification reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: cloud-environment-verification
+          path: artifacts/
+          if-no-files-found: ignore
 
   codespaces:
     runs-on: ubuntu-latest
@@ -36,3 +43,10 @@ jobs:
         with:
           push: never
           runCmd: bash scripts/cloud-environment.sh verify
+      - name: Save container reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: codespaces-verification
+          path: artifacts/
+          if-no-files-found: ignore

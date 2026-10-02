@@ -5,6 +5,8 @@ check_dir="$(mktemp -d)"
 trap 'rm -rf -- "$check_dir"' EXIT
 
 python3 --version
+python3 -m pytest --version
+python3 -m ruff --version
 node --version
 npm --version
 gcc --version
