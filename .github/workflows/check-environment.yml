@@ -23,10 +23,8 @@ jobs:
           package-manager-cache: false
       - name: Validate Codespaces configuration
         run: python3 -m json.tool .devcontainer/devcontainer.json > /dev/null
-      - name: Check development tools
-        run: bash scripts/check-environment.sh
-      - name: Simulate development workflows
-        run: python3 scripts/check-workflows.py
+      - name: Verify Cloud Environment workflows three times
+        run: bash scripts/cloud-environment.sh verify
 
   codespaces:
     runs-on: ubuntu-latest
@@ -37,7 +35,4 @@ jobs:
         uses: devcontainers/ci@v0.3
         with:
           push: never
-          runCmd: |
-            set -e
-            bash scripts/check-environment.sh
-            python3 scripts/check-workflows.py
+          runCmd: bash scripts/cloud-environment.sh verify

@@ -1,5 +1,5 @@
 {
   "name": "Cloud Service Space",
   "image": "mcr.microsoft.com/devcontainers/universal:6-noble",
-  "postCreateCommand": "bash scripts/check-environment.sh"
+  "postCreateCommand": "bash scripts/cloud-environment.sh setup"
 }
